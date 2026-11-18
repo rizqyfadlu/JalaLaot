@@ -10,7 +10,7 @@ import { Toast } from './Toast'
 import { openAuth, useJala } from './store'
 import type { View } from './store'
 
-/** Bingkai setiap layar JalaLaot: navbar, banner adat, dan semua lapisan (keranjang, masuk, peta, sukses). */
+/** Bingkai setiap layar JalaLaot: navbar, banner adat, konten, footer, dan semua lapisan modal. */
 export function Shell({
   view,
   onNavigate,
@@ -24,10 +24,33 @@ export function Shell({
 }) {
   const s = useJala()
   return (
-    <div className={`min-h-full ${className}`}>
+    <div className={`flex min-h-screen flex-col ${className}`}>
       <Navbar view={view} onNavigate={onNavigate} />
       <AdatBanner on={s.adatDay} variant={view === 'seller' ? 'seller' : 'buyer'} />
-      {children}
+
+      <div className="flex-1">{children}</div>
+
+      <footer className="relative mt-auto overflow-hidden border-t border-white/10 bg-ocean-deep text-white">
+        {/* Watermark raksasa samar di latar belakang */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 -bottom-5 flex select-none justify-center overflow-hidden"
+        >
+          <span className="whitespace-nowrap text-[4.5rem] font-black uppercase tracking-widest text-white/[0.04] sm:text-[7.5rem] lg:text-[10rem]">
+            JALALAOT
+          </span>
+        </div>
+
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-8 text-center sm:flex-row sm:px-6 sm:text-left">
+          <p className="text-xs text-white/70 sm:text-sm">
+            © 2026 <strong className="font-bold text-white">JalaLaot Aceh</strong>. Merawat Hasil Laut &amp; Hukom Adat Panglima Laot.
+          </p>
+          <p className="text-xs text-white/50">
+            Rantai Dingin TPI · Banda Aceh &amp; 23 Kabupaten/Kota
+          </p>
+        </div>
+      </footer>
+
       <CartDrawer />
       <AuthModal onNavigate={onNavigate} />
       <ZoneMapModal />
@@ -69,7 +92,7 @@ export function NoAccess({ onBack }: { onBack?: () => void }) {
         <Lock className="h-7 w-7" />
       </span>
       <h1 className="mt-5 text-2xl font-bold text-ink">Akses khusus Admin Adat</h1>
-      <p className="mt-2 text-sm text-muted">Panel ini hanya dapat dibuka oleh akun admin@jalalaot.id yang ditunjuk Panglima Laot.</p>
+      <p className="mt-2 text-sm text-muted">Panel ini hanya dapat dibuka oleh akun admin/ceo.</p>
       <button onClick={onBack} className="mt-6 rounded-lg bg-ocean px-6 py-3 text-sm font-bold text-white transition-colors duration-150 hover:bg-ocean-deep">
         Kembali ke Beranda
       </button>
