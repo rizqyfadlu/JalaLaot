@@ -1,7 +1,5 @@
 # Platform Marketplace Hasil Laut Aceh
 
-Exported from [this OS](https://www.magicpatterns.com/os/1hrczEmZwJRD4pTGPnspLv) on [Magic Patterns](https://magicpatterns.com).
-
 ## Getting started
 
 1. `npm install`
