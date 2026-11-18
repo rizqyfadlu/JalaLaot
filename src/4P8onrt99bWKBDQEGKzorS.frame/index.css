@@ -1,0 +1,32 @@
+/* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORT — DO NOT DELETE THIS COMMENT */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* CRITICAL: THE FOLLOWING TAILWIND IMPORT MUST NEVER BE DELETED — DO NOT DELETE THIS COMMENT */
+@import 'tailwindcss';
+/* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --color-ocean: #0B3954;
+  --color-ocean-deep: #072a3f;
+  --color-teal: #087E8B;
+  --color-teal-soft: #E7F3F4;
+  --color-coral: #FF5A5F;
+  --color-coral-dark: #E8474C;
+  --color-ink: #0B2233;
+  --color-muted: #5B6B78;
+  --color-line: #E3E9EE;
+  --color-mist: #F4F7F9;
+  --color-adat: #B42323;
+  --color-adat-soft: #FDEDED;
+  --color-go: #1A7F46;
+  --color-go-soft: #E6F4EC;
+  --color-frost: #2563A8;
+  --color-frost-soft: #E8F0FA;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: #fff;
+}
