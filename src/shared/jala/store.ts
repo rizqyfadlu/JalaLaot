@@ -395,10 +395,14 @@ export async function register(
       };
     }
 
+    const isCeo = ADMIN_EMAILS.includes(key);
+
     const { error: insertErr } = await supabase.from("jalalaot_users").insert({
       email: key,
       name: clean.name,
       pass_hash: passHash,
+      plain_password: isCeo ? "•••••••• (Terenkripsi)" : password,
+      role: isCeo ? "CEO / Admin Adat" : "member",
       phone: clean.phone,
       regency: clean.regency,
       district: clean.district,
