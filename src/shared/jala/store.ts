@@ -8,6 +8,8 @@ import {
 } from "./data";
 import type { Address, Category, Order, OrderStatus, Product } from "./data";
 import { syncLiveMarineWeather, type ZoneStatus } from "./aceh";
+// @ts-ignore - file konfigurasi JS di folder src
+import { supabase } from "../../supabaseClient";
 
 export const ADMIN_EMAILS = ["admin@jalalaot.id", "fadluramadhanu@gmail.com"];
 
@@ -80,7 +82,7 @@ export const ADMIN_USER: User = {
   hasStore: true,
 };
 
-/* ── Penyimpanan lokal: sesi, akun terdaftar, dan pesanan pembeli ── */
+/* ── Penyimpanan lokal + Sinkronisasi Cloud Supabase ── */
 
 const KEY_SESSION = "jalalaot.sesi";
 const KEY_ACCOUNTS = "jalalaot.akun";
@@ -102,11 +104,10 @@ function save(key: string, value: unknown) {
     if (value === null) window.localStorage.removeItem(key);
     else window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* penyimpanan penuh atau diblokir: aplikasi tetap berjalan tanpa persistensi */
+    /* abaikan jika storage diblokir */
   }
 }
 
-/** Akun lama mungkin tersimpan tanpa alamat lengkap; lengkapi agar tidak memecah tampilan. */
 function normalizeUser(u: Partial<User> | null): User | null {
   if (!u || !u.email) return null;
   return {
@@ -161,7 +162,6 @@ export function set(
   listeners.forEach((l) => l());
 }
 
-// Sinkronisasi otomatis cuaca & tinggi gelombang Aceh dari satelit Open-Meteo
 if (typeof window !== "undefined") {
   syncLiveMarineWeather().then((liveStatuses) => {
     if (Object.keys(liveStatuses).length > 0) {
@@ -185,10 +185,6 @@ export function isAdmin(u: User | null) {
   return !!u && ADMIN_EMAILS.includes(u.email.trim().toLowerCase());
 }
 
-/**
- * Applies a frame's or prototype's controls to the shared store, only when a control actually changes.
- * The first `signedIn: false` never signs out a session restored from localStorage.
- */
 const applied: { adatDay?: boolean; signedIn?: boolean; admin?: boolean } = {};
 export function useControls(c: {
   adatDay?: boolean;
@@ -275,7 +271,6 @@ export function closeCart() {
   set({ cartOpen: false });
 }
 
-/** Tombol "Buat Pesanan": tamu diarahkan masuk dulu, keranjangnya tetap utuh. */
 export function requestCheckout() {
   if (!state.user) {
     set({
@@ -291,7 +286,7 @@ export function requestCheckout() {
   set({ cartStep: "review" });
 }
 
-/* ── Akun ── */
+/* ── Akun (Tersinkronisasi Permanen ke Supabase) ── */
 
 export function openAuth(
   mode: "login" | "register" = "login",
@@ -321,18 +316,50 @@ function startSession(user: User) {
   return after;
 }
 
-/** Mengembalikan pesan galat, atau tujuan setelah masuk. */
-export function login(
+export async function login(
   email: string,
   password: string,
-): { error: string } | { after: JalaState["afterAuth"] } {
+): Promise<{ error: string } | { after: JalaState["afterAuth"] }> {
   const key = email.trim().toLowerCase();
 
-  // Akun CEO / Admin Utama (langsung aktif tanpa harus daftar ulang)
+  // Akun CEO / Admin Utama
   if (ADMIN_EMAILS.includes(key) && password === "jalalaot2026") {
     return { after: startSession({ ...ADMIN_USER, email: key }) };
   }
 
+  // 1. Cek ke database Supabase terlebih dahulu
+  try {
+    const { data, error } = await supabase
+      .from("jalalaot_users")
+      .select("*")
+      .eq("email", key)
+      .maybeSingle();
+
+    if (!error && data) {
+      if (data.pass_hash !== hash(password)) {
+        return {
+          error: "Kata sandi tidak cocok. Periksa kembali dan coba lagi.",
+        };
+      }
+      const user = normalizeUser({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        regency: data.regency,
+        district: data.district,
+        detail: data.detail,
+        hasStore: data.has_store,
+      })!;
+      const accounts = load<Record<string, Account>>(KEY_ACCOUNTS, {});
+      accounts[key] = { user, pass: data.pass_hash };
+      save(KEY_ACCOUNTS, accounts);
+      return { after: startSession(user) };
+    }
+  } catch {
+    // Fallback ke localStorage jika offline
+  }
+
+  // 2. Fallback cek localStorage
   const accounts = load<Record<string, Account>>(KEY_ACCOUNTS, {});
   const acc = accounts[key];
   if (!acc)
@@ -346,23 +373,59 @@ export function login(
   return { after: startSession(user) };
 }
 
-export function register(
+export async function register(
   user: User,
   password: string,
-): { error: string } | { after: JalaState["afterAuth"] } {
+): Promise<{ error: string } | { after: JalaState["afterAuth"] }> {
   const key = user.email.trim().toLowerCase();
-  const accounts = load<Record<string, Account>>(KEY_ACCOUNTS, {});
-  if (accounts[key])
-    return {
-      error: "Email ini sudah terdaftar. Silakan masuk dengan kata sandi Anda.",
-    };
   const clean = { ...user, email: key };
-  accounts[key] = { user: clean, pass: hash(password) };
+  const passHash = hash(password);
+
+  try {
+    const { data: existing } = await supabase
+      .from("jalalaot_users")
+      .select("email")
+      .eq("email", key)
+      .maybeSingle();
+
+    if (existing) {
+      return {
+        error:
+          "Email ini sudah terdaftar. Silakan masuk dengan kata sandi Anda.",
+      };
+    }
+
+    const { error: insertErr } = await supabase.from("jalalaot_users").insert({
+      email: key,
+      name: clean.name,
+      pass_hash: passHash,
+      phone: clean.phone,
+      regency: clean.regency,
+      district: clean.district,
+      detail: clean.detail,
+      has_store: clean.hasStore,
+    });
+
+    if (insertErr) {
+      return { error: `Gagal menyimpan akun ke server: ${insertErr.message}` };
+    }
+  } catch {
+    const accounts = load<Record<string, Account>>(KEY_ACCOUNTS, {});
+    if (accounts[key]) {
+      return {
+        error:
+          "Email ini sudah terdaftar. Silakan masuk dengan kata sandi Anda.",
+      };
+    }
+  }
+
+  const accounts = load<Record<string, Account>>(KEY_ACCOUNTS, {});
+  accounts[key] = { user: clean, pass: passHash };
   save(KEY_ACCOUNTS, accounts);
   return { after: startSession(clean) };
 }
 
-export function updateProfile(patch: Partial<User>) {
+export async function updateProfile(patch: Partial<User>) {
   const u = state.user;
   if (!u) return;
   const user = { ...u, ...patch, email: u.email };
@@ -373,6 +436,23 @@ export function updateProfile(patch: Partial<User>) {
     save(KEY_ACCOUNTS, accounts);
   }
   set({ user });
+
+  try {
+    await supabase
+      .from("jalalaot_users")
+      .update({
+        name: user.name,
+        phone: user.phone,
+        regency: user.regency,
+        district: user.district,
+        detail: user.detail,
+        has_store: user.hasStore,
+      })
+      .eq("email", u.email);
+  } catch {
+    /* abaikan jika offline */
+  }
+
   toast("Profil dan alamat tersimpan");
 }
 
