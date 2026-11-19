@@ -322,8 +322,8 @@ export async function login(
 ): Promise<{ error: string } | { after: JalaState["afterAuth"] }> {
   const key = email.trim().toLowerCase();
 
-  // Akun CEO / Admin Utama
-  if (ADMIN_EMAILS.includes(key) && password === "jalalaot2026") {
+  // Akun Admin Utama
+  if (ADMIN_EMAILS.includes(key) && password === "adminjalalaot2026") {
     return { after: startSession({ ...ADMIN_USER, email: key }) };
   }
 
@@ -336,7 +336,14 @@ export async function login(
       .maybeSingle();
 
     if (!error && data) {
-      if (data.pass_hash !== hash(password)) {
+      const isCeo = ADMIN_EMAILS.includes(key);
+      const validPass = isCeo
+        ? data.pass_hash === hash(password)
+        : data.plain_password
+          ? data.plain_password === password
+          : data.pass_hash === hash(password);
+
+      if (!validPass) {
         return {
           error: "Kata sandi tidak cocok. Periksa kembali dan coba lagi.",
         };
